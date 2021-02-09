@@ -22,12 +22,12 @@ import (
 	"github.com/paketo-buildpacks/libpak"
 	"github.com/paketo-buildpacks/libpak/bard"
 
-	"github.com/paketo-buildpacks/azure-application-insights/insights"
+	"github.com/paketo-buildpacks/datadog-trace/trace"
 )
 
 func main() {
 	libpak.Main(
-		insights.Detect{},
-		insights.Build{Logger: bard.NewLogger(os.Stdout)},
+		trace.Detect{},
+		trace.Build{Logger: bard.NewLogger(os.Stdout)},
 	)
 }

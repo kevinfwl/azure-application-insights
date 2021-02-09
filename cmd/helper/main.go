@@ -21,18 +21,17 @@ import (
 	"os"
 
 	"github.com/buildpacks/libcnb"
+	"github.com/paketo-buildpacks/datadog-trace/helper"
 	"github.com/paketo-buildpacks/libpak/bard"
-
 	"github.com/paketo-buildpacks/libpak/sherpa"
-
-	"github.com/paketo-buildpacks/azure-application-insights/helper"
 )
 
 func main() {
 	sherpa.Execute(func() error {
 		var (
-			err error
-			p   = helper.Properties{Logger: bard.NewLogger(os.Stdout)}
+			logger = bard.NewLogger(os.Stdout)
+			err    error
+			p      = helper.Properties{Logger: logger}
 		)
 
 		p.Bindings, err = libcnb.NewBindingsFromEnvironment()

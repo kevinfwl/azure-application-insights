@@ -30,15 +30,16 @@ type Properties struct {
 	Logger   bard.Logger
 }
 
+//TODO: either remove this or use it as a runtime binding?
 func (p Properties) Execute() (map[string]string, error) {
-	b, ok, err := bindings.ResolveOne(p.Bindings, bindings.OfType("ApplicationInsights"))
+	b, ok, err := bindings.ResolveOne(p.Bindings, bindings.OfType("DatadogTrace"))
 	if err != nil {
-		return nil, fmt.Errorf("unable to resolve binding ApplicationInsights\n%w", err)
+		return nil, fmt.Errorf("unable to resolve binding DatadogTrace\n%w", err)
 	} else if !ok {
 		return nil, nil
 	}
 
-	p.Logger.Info("Configuring Azure Application Insight properties")
+	p.Logger.Info("Configuring Datadog DD trace properties")
 
 	e := make(map[string]string, len(b.Secret))
 	for k, v := range b.Secret {
