@@ -21,7 +21,6 @@ import (
 
 	"github.com/buildpacks/libcnb"
 	. "github.com/onsi/gomega"
-	"github.com/paketo-buildpacks/libpak"
 	"github.com/sclevine/spec"
 
 	"github.com/paketo-buildpacks/datadog-trace/trace"
@@ -34,13 +33,13 @@ func testBuild(t *testing.T, context spec.G, it spec.S) {
 		ctx libcnb.BuildContext
 	)
 
-	it("contributes Java agent", func() {
-		ctx.Plan.Entries = append(ctx.Plan.Entries, libcnb.BuildpackPlanEntry{Name: "azure-application-trace-java"})
+	it("Creates a layer for contriguting the datadog trace agent", func() {
+		ctx.Plan.Entries = append(ctx.Plan.Entries, libcnb.BuildpackPlanEntry{Name: "datadog-trace-java"})
 		ctx.Buildpack.Metadata = map[string]interface{}{
 			"dependencies": []map[string]interface{}{
 				{
-					"id":      "azure-application-trace-java",
-					"version": "1.1.1",
+					"id":      "datadog-trace-java",
+					"version": "1.0.0",
 					"stacks":  []interface{}{"test-stack-id"},
 				},
 			},
@@ -50,9 +49,7 @@ func testBuild(t *testing.T, context spec.G, it spec.S) {
 		result, err := trace.Build{}.Build(ctx)
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(result.Layers).To(HaveLen(2))
-		Expect(result.Layers[0].Name()).To(Equal("azure-application-trace-java"))
-		Expect(result.Layers[1].Name()).To(Equal("helper"))
-		Expect(result.Layers[1].(libpak.HelperLayerContributor).Names).To(Equal([]string{"properties"}))
+		Expect(result.Layers).To(HaveLen(1))
+		Expect(result.Layers[0].Name()).To(Equal("datadog-trace-java"))
 	})
 }

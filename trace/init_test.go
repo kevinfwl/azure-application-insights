@@ -24,7 +24,7 @@ import (
 )
 
 func TestUnit(t *testing.T) {
-	suite := spec.New("insights", spec.Report(report.Terminal{}))
+	suite := spec.New("trace", spec.Report(report.Terminal{}))
 	suite("Build", testBuild)
 	suite("Detect", testDetect)
 	suite("JavaAgent", testJavaAgent)

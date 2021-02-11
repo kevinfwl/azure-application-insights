@@ -33,8 +33,7 @@ import (
 func testJavaAgent(t *testing.T, context spec.G, it spec.S) {
 	var (
 		Expect = NewWithT(t).Expect
-
-		ctx libcnb.BuildContext
+		ctx    libcnb.BuildContext
 	)
 
 	it.Before(func() {
@@ -52,15 +51,16 @@ func testJavaAgent(t *testing.T, context spec.G, it spec.S) {
 		Expect(os.RemoveAll(ctx.Layers.Path)).To(Succeed())
 	})
 
-	it("contributes Java agent", func() {
+	it("Contributes Java agent as a part of the build pack", func() {
 		Expect(os.MkdirAll(filepath.Join(ctx.Buildpack.Path, "resources"), 0755)).To(Succeed())
-		Expect(ioutil.WriteFile(filepath.Join(ctx.Buildpack.Path, "resources", "AI-Agent.xml"), []byte{}, 0644)).
+		Expect(ioutil.WriteFile(filepath.Join(ctx.Buildpack.Path, "resources", "dd-trace-agent.xml"), []byte{}, 0644)).
 			To(Succeed())
 
 		dep := libpak.BuildpackDependency{
-			URI:    "https://localhost/stub-azure-application-trace-agent.jar",
-			SHA256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			URI:    "https://localhost/dd-java-agent.jar",
+			SHA256: "799868a8196959d51f83ea7c5954c7ed6b29069b06286fae203b4d2e5d7ad53a",
 		}
+		//we use a
 		dc := libpak.DependencyCache{CachePath: "testdata"}
 
 		j := trace.NewJavaAgent(ctx.Buildpack.Path, dep, dc, &libcnb.BuildpackPlan{}, ctx)
@@ -71,10 +71,11 @@ func testJavaAgent(t *testing.T, context spec.G, it spec.S) {
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(layer.Launch).To(BeTrue())
-		Expect(filepath.Join(layer.Path, "stub-azure-application-trace-agent.jar")).To(BeARegularFile())
-		Expect(filepath.Join(layer.Path, "AI-Agent.xml")).To(BeARegularFile())
+		Expect(filepath.Join(layer.Path, "dd-java-agent.jar")).To(BeARegularFile())
+		Expect(filepath.Join(layer.Path, "dd-trace-agent.xml")).To(BeARegularFile())
+
 		Expect(layer.LaunchEnvironment["JAVA_TOOL_OPTIONS.delim"]).To(Equal(" "))
 		Expect(layer.LaunchEnvironment["JAVA_TOOL_OPTIONS.append"]).To(Equal(fmt.Sprintf("-javaagent:%s",
-			filepath.Join(layer.Path, "stub-azure-application-trace-agent.jar"))))
+			filepath.Join(layer.Path, "dd-java-agent.jar"))))
 	})
 }

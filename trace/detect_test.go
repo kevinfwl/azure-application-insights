@@ -39,7 +39,7 @@ func testDetect(t *testing.T, context spec.G, it spec.S) {
 
 	it("passes with service", func() {
 		ctx.Platform.Bindings = libcnb.Bindings{
-			{Name: "test-service", Type: "Applicationtrace"},
+			{Name: "test-service", Type: "DatadogTrace"},
 		}
 
 		Expect(detect.Detect(ctx)).To(Equal(libcnb.DetectResult{
