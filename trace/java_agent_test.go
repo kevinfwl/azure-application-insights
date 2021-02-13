@@ -34,6 +34,12 @@ func testJavaAgent(t *testing.T, context spec.G, it spec.S) {
 	var (
 		Expect = NewWithT(t).Expect
 		ctx    libcnb.BuildContext
+		dep    = libpak.BuildpackDependency{
+			URI:    "https://localhost/dd-java-agent.jar",
+			SHA256: "799868a8196959d51f83ea7c5954c7ed6b29069b06286fae203b4d2e5d7ad53a",
+		}
+		//we are storing v0.70.0 dd trace agent in the cache
+		dc = libpak.DependencyCache{CachePath: "testdata/dependencyCache"}
 	)
 
 	it.Before(func() {
@@ -51,17 +57,7 @@ func testJavaAgent(t *testing.T, context spec.G, it spec.S) {
 		Expect(os.RemoveAll(ctx.Layers.Path)).To(Succeed())
 	})
 
-	it("Contributes Java agent as a part of the build pack", func() {
-		Expect(os.MkdirAll(filepath.Join(ctx.Buildpack.Path, "resources"), 0755)).To(Succeed())
-		Expect(ioutil.WriteFile(filepath.Join(ctx.Buildpack.Path, "resources", "dd-trace-agent.xml"), []byte{}, 0644)).
-			To(Succeed())
-
-		dep := libpak.BuildpackDependency{
-			URI:    "https://localhost/dd-java-agent.jar",
-			SHA256: "799868a8196959d51f83ea7c5954c7ed6b29069b06286fae203b4d2e5d7ad53a",
-		}
-		//we use a
-		dc := libpak.DependencyCache{CachePath: "testdata"}
+	it("contributes Java agent as a part of the build pack", func() {
 
 		j := trace.NewJavaAgent(ctx.Buildpack.Path, dep, dc, &libcnb.BuildpackPlan{}, ctx)
 		layer, err := ctx.Layers.Layer("test-layer")
@@ -72,10 +68,34 @@ func testJavaAgent(t *testing.T, context spec.G, it spec.S) {
 
 		Expect(layer.Launch).To(BeTrue())
 		Expect(filepath.Join(layer.Path, "dd-java-agent.jar")).To(BeARegularFile())
-		Expect(filepath.Join(layer.Path, "dd-trace-agent.xml")).To(BeARegularFile())
 
 		Expect(layer.LaunchEnvironment["JAVA_TOOL_OPTIONS.delim"]).To(Equal(" "))
 		Expect(layer.LaunchEnvironment["JAVA_TOOL_OPTIONS.append"]).To(Equal(fmt.Sprintf("-javaagent:%s",
 			filepath.Join(layer.Path, "dd-java-agent.jar"))))
+	})
+
+	it("creates correct flags for running agent given DatadogTrace binding", func() {
+
+		binding, err := libcnb.NewBindingFromPath("testdata/binding")
+		Expect(err).NotTo(HaveOccurred())
+
+		fmt.Println(binding.Type)
+
+		ctx.Platform.Bindings = libcnb.Bindings{
+			binding,
+		}
+
+		j := trace.NewJavaAgent(ctx.Buildpack.Path, dep, dc, &libcnb.BuildpackPlan{}, ctx)
+		layer, err := ctx.Layers.Layer("test-layer")
+
+		layer, err = j.Contribute(layer)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(layer.Launch).To(BeTrue())
+
+		Expect(layer.LaunchEnvironment["DD_TRACE_CONFIG.delim"]).To(Equal(" "))
+		Expect(layer.LaunchEnvironment["DD_TRACE_CONFIG.append"]).To(Equal(fmt.Sprintf(filepath.Join(layer.Path, "agent.properties"))))
+
+		Expect(layer.LaunchEnvironment["DD_JMXFETCH_CONFIG.delim"]).To(Equal(" "))
+		Expect(layer.LaunchEnvironment["DD_JMXFETCH_CONFIG.append"]).To(Equal(fmt.Sprintf(filepath.Join(layer.Path, "conf.yaml"))))
 	})
 }

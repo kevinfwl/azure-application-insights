@@ -30,7 +30,6 @@ type Build struct {
 
 func (b Build) Build(context libcnb.BuildContext) (libcnb.BuildResult, error) {
 	b.Logger.Title(context.Buildpack)
-	b.Logger.Info("STARTING BUILD :)")
 	result := libcnb.NewBuildResult()
 
 	pr := libpak.PlanEntryResolver{Plan: context.Plan}
@@ -61,11 +60,6 @@ func (b Build) Build(context libcnb.BuildContext) (libcnb.BuildResult, error) {
 		ja.Logger = b.Logger
 		result.Layers = append(result.Layers, ja)
 	}
-
-	h := libpak.NewHelperLayerContributor(context.Buildpack, result.Plan, "properties")
-	h.Logger = b.Logger
-
-	result.Layers = append(result.Layers, h)
 
 	return result, nil
 }

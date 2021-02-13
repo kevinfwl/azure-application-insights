@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/buildpacks/libcnb"
-	"github.com/magiconair/properties"
 	"github.com/paketo-buildpacks/libpak"
 	"github.com/paketo-buildpacks/libpak/bard"
 	"github.com/paketo-buildpacks/libpak/bindings"
@@ -35,6 +35,14 @@ type JavaAgent struct {
 	LayerContributor libpak.DependencyLayerContributor
 	Logger           bard.Logger
 }
+
+const (
+	yamlExt        = ".yaml"
+	propertiesExt  = ".properties"
+	javaToolEnv    = "JAVA_TOOL_OPTIONS"
+	jmxConfigEnv   = "DD_JMXFETCH_CONFIG"
+	agentConfigEnv = "DD_TRACE_CONFIG"
+)
 
 func NewJavaAgent(buildpackPath string, dependency libpak.BuildpackDependency, cache libpak.DependencyCache,
 	plan *libcnb.BuildpackPlan, context libcnb.BuildContext) JavaAgent {
@@ -50,43 +58,25 @@ func (j JavaAgent) Contribute(layer libcnb.Layer) (libcnb.Layer, error) {
 	j.LayerContributor.Logger = j.Logger
 
 	return j.LayerContributor.Contribute(layer, func(artifact *os.File) (libcnb.Layer, error) {
-		j.Logger.Bodyf("Copying to %s", layer.Path)
+		j.Logger.Bodyf("Copying to agent to %s", layer.Path)
 
+		//get the java agent and copy it into the image
 		file := filepath.Join(layer.Path, filepath.Base(artifact.Name()))
 		if err := sherpa.CopyFile(artifact, file); err != nil {
 			return libcnb.Layer{}, fmt.Errorf("unable to copy %s to %s\n%w", artifact.Name(), file, err)
 		}
 
-		toolOpsDelim := " "
-		toolOpsFormat := "-javaagent:" + file
+		binding, ok, _ := bindings.ResolveOne(j.Context.Platform.Bindings, bindings.OfType("DatadogTrace"))
 
-		//enables settings the configuration with the "dd-agent-config.properties" file
-		binding, ok, err := bindings.ResolveOne(j.Context.Platform.Bindings, bindings.OfType("DatadogTrace"))
-
-		//we need to test if this works properly
+		//handle the bindings of `DatadogTrace` which agent configurations
 		if ok {
-			args, err := handleAgentProperties(binding)
+			err := handleAgentProperties(binding, layer, j.Logger)
 			if err != nil {
-				return libcnb.Layer{}, fmt.Errorf("unable to process maven settings from binding\n%w", err)
+				return libcnb.Layer{}, fmt.Errorf("Unable to process datadog trace agent configuration from binding\n%w", err)
 			}
-			toolOpsFormat += args
 		}
 
-		layer.LaunchEnvironment.Appendf("JAVA_TOOL_OPTIONS", toolOpsDelim, toolOpsFormat)
-
-		//TODO: this needs to be removed and replaced with other
-		file = filepath.Join(j.BuildpackPath, "resources", "dd-trace-agent.xml")
-
-		in, err := os.Open(file)
-		if err != nil {
-			return libcnb.Layer{}, fmt.Errorf("unable to open %s\n%w", file, err)
-		}
-		defer in.Close()
-
-		file = filepath.Join(layer.Path, "dd-trace-agent.xml")
-		if err := sherpa.CopyFile(in, file); err != nil {
-			return libcnb.Layer{}, fmt.Errorf("unable to copy %s to %s\n%w", in.Name(), file, err)
-		}
+		layer.LaunchEnvironment.Appendf(javaToolEnv, " ", "-javaagent:"+file)
 
 		return layer, nil
 	}, libpak.LaunchLayer)
@@ -96,21 +86,64 @@ func (j JavaAgent) Name() string {
 	return j.LayerContributor.LayerName()
 }
 
-//enables running a java agent based on a file
-func handleAgentProperties(binding libcnb.Binding) (string, error) {
-	path, ok := binding.SecretFilePath("dd-agent-config.properties")
-	launchProperties := ""
-	if !ok {
-		return launchProperties, nil
-	}
-	p := properties.MustLoadFile(path, properties.UTF8)
-	keys := p.Keys()
-	propertyMap := p.Map()
+//adds agent configuration if configuration files exists in the agent
+func handleAgentProperties(binding libcnb.Binding, layer libcnb.Layer, logger bard.Logger) error {
 
-	for i, s := range keys {
-		_ = i
-		launchProperties += " -D" + s + "=" + propertyMap[s]
+	propertiesFileFound := false
+	jmxFileFound := false
+
+	err := filepath.Walk(binding.Path, func(path string, info os.FileInfo, err error) error {
+
+		paths := strings.Split(path, "/")
+		filename := paths[len(paths)-1]
+		toPath := filepath.Join(layer.Path, filename)
+
+		if strings.HasSuffix(path, propertiesExt) {
+			logger.Info("Java agent configuration file %s detected", path)
+			if propertiesFileFound {
+				return fmt.Errorf("Unable to resolve binding configuration: More than 1 .properties supplied")
+			}
+
+			err := copyFile(path, toPath)
+			if err != nil {
+				return fmt.Errorf("Unable to resolve binding configuration\n%w", err)
+			}
+			layer.LaunchEnvironment.Appendf(agentConfigEnv, " ", toPath)
+			propertiesFileFound = true
+
+		} else if strings.HasSuffix(path, yamlExt) {
+			logger.Info("JMX configuration file %s detected", path)
+			if jmxFileFound {
+				return fmt.Errorf("Unable to resolve binding configuration: More than 1 .yaml supplied")
+			}
+
+			err := copyFile(path, toPath)
+			if err != nil {
+				return fmt.Errorf("Unable to resolve binding configuration\n%w", err)
+			}
+			layer.LaunchEnvironment.Appendf(jmxConfigEnv, " ", toPath)
+			jmxFileFound = true
+		}
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("Failed to resolve binding\n%w", err)
 	}
 
-	return launchProperties, nil
+	return nil
+}
+
+//copies a file into the built image
+func copyFile(from string, to string) error {
+	in, err := os.Open(from)
+	if err != nil {
+		return fmt.Errorf("unable to open %s\n%w", from, err)
+	}
+	defer in.Close()
+
+	if err := sherpa.CopyFile(in, to); err != nil {
+		return fmt.Errorf("unable to copy %s to %s\n%w", in.Name(), to, err)
+	}
+	return nil
 }

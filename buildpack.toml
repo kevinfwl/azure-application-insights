@@ -42,12 +42,9 @@ stacks  = [ "io.buildpacks.stacks.bionic", "org.cloudfoundry.stacks.cflinuxfs3" 
 pre-package   = "scripts/build.sh"
 include-files = [
   "LICENSE",
-  "NOTICE",
   "README.md",
   "bin/build",
   "bin/detect",
-  "bin/helper",
   "bin/main",
   "buildpack.toml",
-  "resources/dd-trace-agent.xml",
 ]
