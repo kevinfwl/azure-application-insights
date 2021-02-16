@@ -1,31 +1,30 @@
-# `gcr.io/paketo-buildpacks/azure-application-insights`
-The Paketo Azure Application Insights Buildpack is a Cloud Native Buildpack that contributes the Application Insights Agent and configures it to connect to the service.
+<!-- # `gcr.io/paketo-buildpacks/azure-application-insights` -->
+# Datadog Trace Agent Paketo Buildpack
+The Paketo Datadog Trace Buildpack is a Cloud Native Buildpack that contributes the Data trace agent and configures it to connect to the service running on an OCI image.
 
-## Behavior
-This buildpack will participate if all the following conditions are met
+## Behaviour
+This buildpack will participate if all the following conditions are met:
 
-* A binding exists with `type` of `ApplicationInsights`
+* A [binding](https://paketo.io/docs/buildpacks/configuration/#bindings) exists with `type` of `DatadogTrace`
 
 The buildpack will do the following for Java applications:
 
 * Contributes a Java agent to a layer and configures `JAVA_TOOL_OPTIONS` to use it
-* Transforms the contents of the binding secret to environment variables with the pattern `APPINSIGHTS_<KEY>=<VALUE>`
 
-The buildpack will do the following NodeJS applications:
+## Configuring the Agent
+The agent can be configured by adding the following files in the binding's directory:
 
-* Contributes a NodeJS agent to a layer and configures `$NODE_MODULES` to use it
-* If main module does not already require `appinsights` module, prepends the main module with `require('applicationinsights').start();`
-* Transforms the contents of the binding secret to environment variables with the pattern `APPINSIGHTS_<KEY>=<VALUE>`
+| File Type        | Behaviour           |
+| ------------- |:-------------:| 
+| `.yaml`      |  Contributes the file into the image and assigns the env variable `DD_JMXFETCH_CONFIG` to the file's path in the image. | 
+| `.properties`      | Contributes the file into the image and assigns the env variable `DD_TRACE_CONFIG` to the file's path in the image.      | 
+
+Currently only one of each configuration file can be provided in the binding.
+
+## Contributing
+To contribute or use the buildpack locally, see [contributing](./CONTRIBUTING.md)
 
 ## License
 This buildpack is released under version 2.0 of the [Apache License][a].
-
-## Bindings
-The buildpack optionally accepts the following bindings:
-
-### Type: `dependency-mapping`
-|Key                   | Value   | Description
-|----------------------|---------|------------
-|`<dependency-digest>` | `<uri>` | If needed, the buildpack will fetch the dependency with digest `<dependency-digest>` from `<uri>`
 
 [a]: http://www.apache.org/licenses/LICENSE-2.0
